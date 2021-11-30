@@ -23,23 +23,26 @@ def create_inclusive_array(freq='30Min', year=2019, features=1, C=True,P=True):
     3 features → HLC
     1 feature → C only.'''
     df = pd.DataFrame()
+    col = 0
     if C:
-        for i, c1 in enumerate(insts):
+        for c1 in insts:
             print(c1)
             with open("./"+freq+"_"+str(year)+"/"+c1 +'_'+freq+'.pickle','rb')\
             as pickle_file:
                 d = pickle.load(pickle_file).iloc[:,-features:]
             df = pd.merge(df,d, left_index=True,right_index=True, how='outer',\
                     suffixes=(None, c1))
-    if P:
-        for i, c1 in enumerate(pairs):
+        col += len(insts) * features # 4 columns per currency
+            if P:
+        for c1 in pairs:
             print(c1)
             with open("./"+freq+"_"+str(year)+"/"+c1 +'_'+freq+'.pickle','rb')\
             as pickle_file:
                 d = pickle.load(pickle_file).iloc[:,-features:]
             df = pd.merge(df,d, left_index=True, right_index=True,how='outer',\
                     suffixes=(None, c1))
-    #assert df.shape[1] == len(insts) * features # 4 columns per currency
+        col += len(pairs) * features # 4 columns per currency
+    assert df.shape[1] == col
     return df.fillna(method="ffill").fillna(method="bfill").dropna()
 
 def splitXy(data, lookback=5, horizon=1):
@@ -67,9 +70,7 @@ def model_builder(shape, lstm_units=64, dropout=0.01, channels=1):
 
 def mape(actual, forecast):
     '''Mean Absolute Percentage Error'''
-    #TODO: Line up by index...
     return mean(abs((forecast - actual) / actual))
-    #return statistics.mean(abs((forecast - actual) / actual).flatten())
 
 def syn_forecasts():
     tic = time.perf_counter()
@@ -107,12 +108,12 @@ def print_results(): # previously in runAll.py
     shv = "{:.0%}".format((sump-sumc) / sump)
     print('... shaving off ' + shv)
 
-def plot_training(history): # Korstanje [2021]
+def plot_training(history):
     plt.plot(history.history['loss'])
     plt.plot(history.history['val_loss'])
-    plt.title('model loss')
-    plt.ylabel('accuracy')
-    plt.xlabel('epoch')
+    plt.title('Training the neural network')
+    plt.ylabel('Loss')
+    plt.xlabel('Epoch')
     plt.legend(['train', 'val'], loc='upper left')
     plt.show()
 

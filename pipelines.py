@@ -20,7 +20,7 @@ horizon = 5 # number of time steps ahead to predict
 model_path = r'\LSTM_Multivariate.h5'
 epochs = 5 # Loss appears to flatten around 80
 bch_size = 32
-learning_rate = 0.01
+learning_rate = 0.1
 lstm_units = 32
 
 def distribute_predictions(prefix='./30Min_2019/', suffix = '_30Min.pickle'):
@@ -64,7 +64,8 @@ def pipeline_df(train, test, n_features=1):
     # Construct and train model
     model = model_builder((lookback, 1))
     history = model.fit(X_train, y_train, validation_split=0.2,
-    epochs = epochs, batch_size = bch_size,\
+    # epochs = epochs, batch_size = bch_size,\
+    epochs = epochs,\
         callbacks = [callbacks.EarlyStopping(monitor='val_loss',\
         min_delta=0,patience=10,verbose=1,mode='min'),\
             callbacks.ModelCheckpoint(model_path,monitor='val_loss',\

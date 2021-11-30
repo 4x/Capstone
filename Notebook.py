@@ -30,17 +30,9 @@ for i in pair_actual:
     print(i.shape)
 
 
-df = create_inclusive_array()
 currency_accuracy, currency_frcast, currency_actual, ctime,\
         pair_accuracy, pair_frcast, pair_actual, ptime =\
     distribute_predictions(prefix='./30Min_2019/', suffix = '_30Min.pickle')
+df = create_inclusive_array()
 predictions, unscaled_y =\
     distribute_predictions(prefix='./30Min_2019/', suffix = '_30Min.pickle')
-
-d = predictions - unscaled_y
-s = mean(d)
-m = mape(unscaled_y.to_numpy(), predictions)
-mapes = list()
-for i in range(predictions.shape[1]):
-    mapes.append(mape(unscaled_y.iloc[:, i], predictions[:, i]))
-mapes
