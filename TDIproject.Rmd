@@ -1,0 +1,135 @@
+---
+title: "Currency indexes"
+author: "Shah̠ar"
+date: "11/20/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Motivation
+Dimensionality reduction in the currency markets could bring significant benefits, without any sacrifice of data. We can reduce the 28 "major" pairs into their component eight currencies.
+Graphically, we would be reducing this ${8 \choose 2}$ chart clutter:  
+![](28pairs.PNG)
+
+into a more manageable dataset of eight charts:  
+![](8currenSinglets.PNG)
+
+Of course, the benefits of this process reach considerably beyond visual elegance. The $n$ for any analysis (along with its required resources) - whether automatic or manual - could be cut down by more than two thirds. And as we will see [later](https://rpubs.com/Shahar/ts), this analysis will be performed on a refined, reduced-noise data set.
+
+## Dimensionality reduction
+Raw tick and minute data (currency pairs: bid and ask) were processed after downloading from a forex broker using their platform.
+
+The reduction in dimensionality manifests more clearly when aggregating all currency pairs - or all currencies - inside one data frame. Then, each tick, minute, or hour (depending on the required time frame) can be seen as a new data point.
+Consequently, every currency pair or currency - as attributes of that specific point in time - would have a different price (technically four more prices, corresponding to Open, High, Low, and Close - or even twice that if one accounts for bid and ask separately - but let's keep ignore these for the sake of simplicity).
+The following code puts all of the M1 currency _pair_ data into one time frame, and all of the M1 _currency_ data into another - and shows the dimensionality reduction from 28t to 8t (t is the number of points in the time series). It then presents a visual of the reduction in file size.
+```{r}
+library(xts)
+insts <- c("AUD", "NZD", "EUR", "GBP", "CAD", "CHF", "JPY", "USD")
+
+currency <- xts()
+pair <- xts()
+merge_currency <- function(instrument) {
+  r <- readRDS(paste0(".\\M1\\", instrument, '2020M1.rds'))[,4]
+  colnames(r) <- instrument
+  return(r)
+}
+
+for (c1 in insts) {
+  currency <- na.locf(na.locf(merge(currency, merge_currency(c1), join="right"),
+                              fromLast = TRUE))
+  for (c2 in insts) {
+    c12 <- paste0(c1, c2)
+    f <- paste0(".\\M1\\", c12, '2020M1.rds')
+    if (file.exists(f)) {
+      pair <- merge(pair, merge_currency(c12), join="right")
+    }
+  }
+}
+pair[endpoints(pair, on="quarters"),]
+print(dim(pair)[2])
+currency[endpoints(currency, on="quarters"),]
+print(dim(currency)[2])
+
+df <- data.frame(Instrument=character(), Size=integer(), Type=character())
+
+merge_currency <- function(instrument, df) {
+  pc <- "Currency"
+  if (nchar(instrument) > 3) pc <- "Currency pair"
+  f <- paste0(".\\M1\\", instrument, '2020M1.rds')
+  d <- list(Instrument=instrument, Size=file.info(f)$size / 2^20, Type=pc)
+  df <- rbind(d, df, stringsAsFactors=FALSE)
+  return(df)
+}
+
+for (c1 in insts) {
+  df <- merge_currency(c1, df)
+  for (c2 in insts) {
+    c12 <- paste0(c1, c2)
+    f <- paste0(".\\M1\\", c12, '2020M1.rds')
+    if (file.exists(f)) {
+      df <- merge_currency(c12, df)
+    }
+  }
+}
+
+df$Type <- factor(df$Type, levels=c("Currency pair", "Currency"))
+
+library(ggplot2)
+ggplot(df, aes(fill=Instrument, y=Size, x=Type)) + 
+  geom_bar(position="stack", stat="identity") +
+  xlab(NULL) + ylab("File size [MB]")
+```
+
+
+## How do we know that the resulting data are indeed equivalent?
+Let's test if we can recreate the pairs. For example, let's examine the "original" NZD/USD (as downloaded from the broker), against the "artificial" NZD/USD, constructed by dividing our NZD index by our USD index:
+```{r echo=-1}
+# CompareActualSynthetic.r
+library(ggplot2)
+library(ggtext)
+library(xts)
+
+base.currency <- "NZD"
+quote.currency <- "USD"
+pair <- paste0(base.currency, quote.currency)
+
+# On first run only:
+# nzdusd <- readRDS(paste0(base.currency, ".rds"))$Bid /
+#           readRDS(paste0(quote.currency, ".rds"))$Bid
+# saveRDS(nzdusd, file="SyntheticNZDUSDticks.rds")
+
+# nzdusd 	<- na.locf(na.locf(
+#   merge(readRDS(paste0(".\\Daily\\", pair, '.rds'))[,4],
+#         to.daily(readRDS("SyntheticNZDUSDticks.rds"))[,4])), fromLast = TRUE)
+# colnames(nzdusd) <- c("Actual", "Synthetic")
+# saveRDS(nzdusd, file=(paste0(".\\Daily\\", "ActualSyntheticNZDUSD.rds")))
+nzdusd <- readRDS(paste0(".\\Daily\\", "ActualSyntheticNZDUSD.rds"))
+
+d <- data.frame(
+  day = as.Date(index(nzdusd)),
+  Actual <- nzdusd[,1],
+  Synthetic <- nzdusd[,2]
+)
+
+daily_close <- ggplot(d) +
+  geom_line(mapping=aes(x=day, y=Actual, color="Actual"),
+            linetype="dashed", size=1) +
+  geom_line(mapping=aes(x=day, y=Synthetic, color="Synthetic"),
+            linetype="dotted", size=1) +
+  scale_color_manual(values
+                     = c('Actual' = 'aquamarine', 'Synthetic' = 'seagreen')) +
+  labs(x = NULL, y = "NZD/USD", color = "Market",
+    title = "Actual vs synthetic daily close for 2020",
+    subtitle = paste0("*Synthetic* data represented as dots ",
+                      "to visually separate from *actual* market data"))
+daily_close + theme(plot.subtitle = ggtext::element_markdown())
+mean_dif <- mean(Actual - Synthetic)
+print(mean_dif)
+print(paste0(round(100 * mean_dif / mean(Actual), 3), '%'))
+```
+
+The two time series are virtually indistinguishable: the mean difference is only about 15 millionths of one dollar, amounting to about 0.002% of the mean exchange rate.
+
+Now that we have shown that the reduced data set is equivalent to the original, let's examine an important advantage the former has over the latter: [lower noise](https://rpubs.com/Shahar/ts).

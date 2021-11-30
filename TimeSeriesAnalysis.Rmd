@@ -1,0 +1,72 @@
+---
+title: "Time series analysis"
+author: "Shah̠ar"
+date: "11/20/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+### Reduced noise
+Each currency pair is directly affected by two currencies, each of which carries its fair share of noise.
+The single currency time series created here cut down on that noise. To demonstrate, we will measure the daily volatility throughout 2020, for all currency pairs and currencies. Volatility is often measured as the standard deviation of daily returns, in percent.
+
+```{r eval=FALSE}
+for (c1 in insts) {
+  save_daily(c1)
+  for (c2 in insts) {
+    pair <- paste0(c1, c2)
+    f <- paste0(pair, "2020M5.rds")
+    if (file.exists(f)) save_daily(pair)
+  }
+}
+
+save_daily <- function(instrument) {
+  d1 <- to.daily(readRDS(paste0(instrument, "2020M5.rds")))
+  colnames(d1) <- c("Open", "High", "Low", "Close")
+  saveRDS(d1, file=paste0(".\\Daily\\", instrument, '.rds'))
+}
+```
+```{r}
+library(ggplot2)
+library(xts)
+insts <- c("AUD", "NZD", "EUR", "GBP", "CAD", "CHF", "JPY", "USD")
+
+# Once daily's are already saved
+currency_vol <- vector()
+pair_vol <- vector()
+find_vol <- function(instrument) {
+  d1 <- readRDS(paste0(".\\Daily\\", instrument, '.rds'))
+  returns <- d1$Close / stats::lag(d1$Close) - 1
+  return(sd(returns*100, na.rm=TRUE))
+}
+
+for (c1 in insts) {
+  currency_vol <- rbind(currency_vol, find_vol(c1))
+  for (c2 in insts) {
+    pair <- paste0(c1, c2)
+    f <- paste0(".\\Daily\\", pair, '.rds')
+    if (file.exists(f)) {
+      pair_vol <- rbind(pair_vol, find_vol(pair))
+    }
+  }
+}
+
+d1 <- data.frame(pair_vol, "Currency pair")
+d2 <- data.frame(currency_vol, "Currency")
+colnames(d1) <- c("Volatility", "Instrument")
+colnames(d2) <- c("Volatility", "Instrument")
+st_devs <- rbind(d1, d2)
+st_devs$Instrument <-
+  factor(st_devs$Instrument, levels=c("Currency pair", "Currency"))
+g <- ggplot(st_devs, aes(x=Instrument, Volatility)) +
+  geom_boxplot() + xlab(NULL)
+boxdata <- ggplot_build(g)$data[[1]]
+q1 <- boxdata[1,2] # first quartile of currency pair
+q3 <- boxdata[2,4] # third quartile of currency
+g + geom_hline(yintercept = (q1+q3) / 2, linetype="dashed", color = "red")
+
+```
+
+Noise, as measured by daily volatility in percent, is reduced so significantly, that the third quartile of the _currency_ volatility is smaller than the first quartile of _currency pairs_' volatility (red dashed line added to help see this). Note that this is not a sample: it includes every day (in 2020) for every currency and every currency pair.
