@@ -29,10 +29,10 @@ for i in currency_frcast:
 for i in pair_actual:
     print(i.shape)
 
-df = create_inclusive_array()
 
-currency_pairs = create_currency_pair_list()
+df = create_inclusive_array()
 currency_accuracy, currency_frcast, currency_actual, ctime,\
         pair_accuracy, pair_frcast, pair_actual, ptime =\
     distribute_predictions(prefix='./30Min_2019/', suffix = '_30Min.pickle')
-sitp = distribute_predictions(prefix='./30Min_2019/', suffix = '_30Min.pickle')
+predictions, unscaled_y =\
+    distribute_predictions(prefix='./30Min_2019/', suffix = '_30Min.pickle')

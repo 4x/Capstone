@@ -12,7 +12,7 @@ import numpy as np
 from tensorflow.keras import callbacks
 
 # parameters
-lookback = 5 # number of previous time steps to use as input
+lookback = 3 # number of previous time steps to use as input
 n_features = 1
 horizon = 5 # number of time steps ahead to predict
 
@@ -24,10 +24,7 @@ learning_rate = 0.01
 lstm_units = 64
 
 def distribute_predictions(prefix='./30Min_2019/', suffix = '_30Min.pickle'):
-    ptime, ctime = list(), list()
-    pair_frcast, currency_frcast = list(), list()
-    currency_accuracy, pair_accuracy = list(), list()
-    currency_actual, syn_actual, pair_actual = list(), list(), list()
+    #ptime, ctime = list(), list()
     format = "%(asctime)s: %(message)s"
     logging.basicConfig(format=format, level=logging.WARN, datefmt="%H:%M:%S")
     #df = create_inclusive_array()
@@ -45,9 +42,11 @@ def distribute_predictions(prefix='./30Min_2019/', suffix = '_30Min.pickle'):
             pipeline_df(train[:, 8+x], test[:, 8+x]), range(28)):
                 if _ is not None: # non-currency pairs e.g. USD/GBP
                     predictions[:, 8+i] = _
-    return scaler.inverse_transform(predictions)
+        print(f'{c1} done')
+    predictions = scaler.inverse_transform(predictions)
+    #return predictions, unscaled_y-predictions, mape(unscaled_y, predictions)
+    return predictions, unscaled_y
 
-#def pipeline_df(df, n_features=1):
 def pipeline_df(train, test, n_features=1):
     '''All steps necessary from dataframe input to training and prediction.'''
     X_train, y_train = splitXy(train,lookback, horizon)
@@ -61,11 +60,4 @@ def pipeline_df(train, test, n_features=1):
         min_delta=0,patience=10,verbose=1,mode='min'),\
             callbacks.ModelCheckpoint(model_path,monitor='val_loss',\
             save_best_only=True, mode='min', verbose=0)])
-
     return np.squeeze(model.predict(X_test))
-    # Predict, evaluate, and report
-    prediction = scaler.inverse_transform(model.predict(X_test))
-    model.save(f.replace('.pickle', '_Model'))
-    print(f.replace('./30Min_2019/', '').replace('_30Min.pickle', ''))
-    return mape(unscaled_y, np.squeeze(prediction)), prediction,\
-        unscaled_y, time.perf_counter() - tic

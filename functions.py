@@ -1,28 +1,20 @@
 import pandas as pd
 import pickle
 import numpy as np
-from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, LSTM, Dropout, TimeDistributed, Flatten
+from tensorflow.keras.layers import Dense, LSTM, Dropout, Flatten
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras import callbacks, Input
 from statistics import mean
 import matplotlib.pyplot as plt
-from itertools import combinations
+from os import path
 
 insts = ["AUD", "NZD", "EUR", "GBP", "CAD", "CHF", "JPY", "USD"]
+pairs = ['AUDNZD', 'EURAUD', 'GBPAUD', 'AUDCAD', 'AUDCHF', 'AUDJPY', 'AUDUSD',\
+     'EURNZD', 'GBPNZD', 'NZDCAD', 'NZDCHF', 'NZDJPY', 'NZDUSD', 'EURGBP',\
+        'EURCAD', 'EURCHF', 'EURJPY', 'EURUSD', 'GBPCAD', 'GBPCHF', 'GBPJPY',\
+        'GBPUSD', 'CADCHF', 'CADJPY', 'USDCAD', 'CHFJPY', 'USDCHF', 'USDJPY']
 n_insts = len(insts)
-
-def create_currency_pair_list():
-    '''Return a list of the 28 currency pairs that comprise our "universe."'''
-    currency_pairs = list()
-    for c1, c2 in combinations(insts, 2):
-        if path.exists('./Daily/' + c1 + c2 +"vector.rds"):
-            currency_pairs.append(c1 + c2)
-        elif path.exists('./Daily/' + c2 + c1 +"vector.rds"):
-            currency_pairs.append(c2 + c1)
-    assert len(currency_pairs) == 28
-    return currency_pairs
 
 def create_inclusive_array(freq='30Min', year=2019, features=1, C=True,P=True):
     '''Put all currencies and/or all pairs into one dataframe, so that the time
@@ -40,7 +32,7 @@ def create_inclusive_array(freq='30Min', year=2019, features=1, C=True,P=True):
             df = pd.merge(df,d, left_index=True,right_index=True, how='outer',\
                     suffixes=(None, c1))
     if P:
-        for i, c1 in enumerate(currency_pairs):
+        for i, c1 in enumerate(pairs):
             print(c1)
             with open("./"+freq+"_"+str(year)+"/"+c1 +'_'+freq+'.pickle','rb')\
             as pickle_file:
@@ -49,31 +41,6 @@ def create_inclusive_array(freq='30Min', year=2019, features=1, C=True,P=True):
                     suffixes=(None, c1))
     #assert df.shape[1] == len(insts) * features # 4 columns per currency
     return df.fillna(method="ffill").fillna(method="bfill").dropna()
-
-def split_sequencesXy(data, lookback=5, horizon=1):
-    '''split a 3D multivariate sequence into input X and output y'''
-    n_inputs = len(data) - lookback - horizon
-    #X = np.empty((n_inputs, lookback, data.shape[1]))
-    X = np.empty((n_inputs, lookback))
-    y = np.empty(n_inputs)
-    for i in range(n_inputs):        
-        last_obs = i + lookback # last observation for this time step    e.g. 5
-        last_prediction = last_obs + horizon # furthest time to predict (not inclusive)    e.g. 6
-        X[i] = data[i:last_obs] # HLC                   e.g. [0, 1, 2, 3, 4]    
-        y[i] = data[last_prediction] # Next period's C e.g. 5:6 i.e. [5]
-    return X, y
-
-def data2Xy(data, lookback=5, horizon=1):
-    '''split a 3D multivariate sequence into input X and output y'''
-    n_inputs = len(data) - lookback - horizon
-    X = np.empty((n_inputs, lookback))
-    y = np.empty(n_inputs)
-    for i in range(n_inputs):        
-        last_obs = i + lookback # last observation for this time step    e.g. 5
-        last_prediction = last_obs + horizon # furthest time to predict (not inclusive)    e.g. 6
-        X[i, :, 1] = data[i:last_obs] # HLC                   e.g. [0, 1, 2, 3, 4]    
-        y[i] = data[last_prediction, -1] # Next period's C e.g. 5:6 i.e. [5]
-    return X, y
 
 def splitXy(data, lookback=5, horizon=1):
     '''split a 3D multivariate sequence into input X and output y'''
@@ -98,16 +65,6 @@ def model_builder(shape, lstm_units=64, dropout=0.01, channels=1):
                 loss = 'mean_squared_error')
     return rnn
 
-def model_builder2(lstm_units=64, dropout=0.01, channels=1):
-    rnn = Sequential([LSTM(units = lstm_units,
-        return_sequences = False,  input_shape=(2, 1)),
-            Dropout(dropout),
-            Dense(channels)]) # Output layer
-    learning_rate = 1e-3
-    rnn.compile(optimizer = Adam(learning_rate = learning_rate, clipnorm=1.0),
-                loss = 'mean_squared_error')
-    return rnn
-
 def mape(actual, forecast):
     '''Mean Absolute Percentage Error'''
     #TODO: Line up by index...
@@ -124,7 +81,7 @@ def syn_forecasts():
         for j, c2 in enumerate(insts):
             c12 = c1 + c2
             # f = c12 + "vector.rds"
-            if c12 in currency_pairs:
+            if c12 in pairs:
                 tic = time.perf_counter()
                 ff = np.squeeze(currency_frcast[i] / currency_frcast[j])
                 m = mape(pair_actual[pair_counter], ff)
