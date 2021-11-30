@@ -28,6 +28,7 @@ All time series were split into training and test sets using `sklearn.model_sele
 
 ## Distributed Computing
 This project relies on 36 simultaneous neural networks: 28 for the currencies, and eight for the underlying currencies. To split the load among the processors and cores, the computations are executed asynchronously using `ThreadPoolExecutor` (in `distribute_predictions(prefix, suffix)`.
+![Model Losses](./ModelLosses.png)
 
 ## Measuring Forecast Accuracy
 There are many ways to compare the performance of various prediction models. I chose *Mean Absolute Percentage Error*, or MAPE, which is calculated as:
