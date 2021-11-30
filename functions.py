@@ -100,8 +100,6 @@ def print_results(): # previously in runAll.py
     print(mean(currency_accuracy))
     print(mean(pair_accuracy))
     #print(mean(syn_accuracy))
-    print(round(sumc))
-    print(round(sump))
     #accuracy_diff = np.array(pair_accuracy) - np.array(syn_accuracy)
     #print(mean(accuracy_diff))
     print(f'Took {round(sump)} sec to process pairs but only \
