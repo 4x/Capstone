@@ -33,6 +33,10 @@ for i in pair_actual:
 currency_accuracy, currency_frcast, currency_actual, ctime,\
         pair_accuracy, pair_frcast, pair_actual, ptime =\
     distribute_predictions(prefix='./30Min_2019/', suffix = '_30Min.pickle')
+
 df = create_inclusive_array()
-predictions, unscaled_y =\
-    distribute_predictions(prefix='./30Min_2019/', suffix = '_30Min.pickle')
+predictions, unscaled_y, ctime, ptime, mapes = distribute_predictions(prefix='./30Min_2019/', suffix = '_30Min.pickle')
+
+df = create_inclusive_array()
+predictions, unscaled_y, ctime, ptime, mapes = distribute_predictions(df)
+

@@ -15,7 +15,8 @@ pairs = ['AUDNZD', 'EURAUD', 'GBPAUD', 'AUDCAD', 'AUDCHF', 'AUDJPY', 'AUDUSD',\
         'EURCAD', 'EURCHF', 'EURJPY', 'EURUSD', 'GBPCAD', 'GBPCHF', 'GBPJPY',\
         'GBPUSD', 'CADCHF', 'CADJPY', 'USDCAD', 'CHFJPY', 'USDCHF', 'USDJPY']
 n_insts = len(insts)
-
+pair_map = [[0, 3, 4, 5, 6], [9, 10, 11, 12], [1, 7, 13, 14, 15, 16, 17],\
+    [2, 8, 18, 19, 20, 21], [22, 23], [25], [], [24, 26, 27]]
 def create_inclusive_array(freq='30Min', year=2019, features=1, C=True,P=True):
     '''Put all currencies and/or all pairs into one dataframe, so that the time
     index exactly aligns: this makes comparisons easier.
@@ -33,7 +34,7 @@ def create_inclusive_array(freq='30Min', year=2019, features=1, C=True,P=True):
             df = pd.merge(df,d, left_index=True,right_index=True, how='outer',\
                     suffixes=(None, c1))
         col += len(insts) * features # 4 columns per currency
-            if P:
+    if P:
         for c1 in pairs:
             print(c1)
             with open("./"+freq+"_"+str(year)+"/"+c1 +'_'+freq+'.pickle','rb')\
@@ -72,6 +73,18 @@ def mape(actual, forecast):
     '''Mean Absolute Percentage Error'''
     return mean(abs((forecast - actual) / actual))
 
+def map_pairs_to_currency():
+    matching_pairs = list()
+    for i, c1 in enumerate(insts):
+        _ = list()
+        for j, pair in enumerate(pairs):
+            if pair[:3] == c1:
+                _.append(j)
+        matching_pairs.append(_)
+    assert len(matching_pairs) == n_insts
+    print(matching_pairs)
+    return matching_pairs
+
 def syn_forecasts():
     tic = time.perf_counter()
     syn_forecast, syn_accuracy, stime = [], [], []
@@ -103,6 +116,16 @@ def print_results(): # previously in runAll.py
     #print(mean(syn_accuracy))
     #accuracy_diff = np.array(pair_accuracy) - np.array(syn_accuracy)
     #print(mean(accuracy_diff))
+    print(f'Took {round(sump)} sec to process pairs but only \
+    {round(sumc)} sec to process currencies...')
+    shv = "{:.0%}".format((sump-sumc) / sump)
+    print('... shaving off ' + shv)
+
+def print_results(ctime, ptime, currency_accuracy, pair_accuracy):
+    sumc = sum(ctime)
+    sump = sum(ptime)
+    print(mean(currency_accuracy))
+    print(mean(pair_accuracy))
     print(f'Took {round(sump)} sec to process pairs but only \
     {round(sumc)} sec to process currencies...')
     shv = "{:.0%}".format((sump-sumc) / sump)

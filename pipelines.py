@@ -12,7 +12,7 @@ import numpy as np
 from tensorflow.keras import callbacks
 
 # parameters
-lookback = 3 # number of previous time steps to use as input
+lookback = 1 # number of previous time steps to use as input
 n_features = 1
 horizon = 5 # number of time steps ahead to predict
 
@@ -20,14 +20,14 @@ horizon = 5 # number of time steps ahead to predict
 model_path = r'\LSTM_Multivariate.h5'
 epochs = 5 # Loss appears to flatten around 80
 bch_size = 32
-learning_rate = 0.1
+learning_rate = 0.001
 lstm_units = 32
 
-def distribute_predictions(prefix='./30Min_2019/', suffix = '_30Min.pickle'):
+def distribute_predictions(df):
     ptime, ctime = list(), list()
     format = "%(asctime)s: %(message)s"
     logging.basicConfig(format=format, level=logging.WARN, datefmt="%H:%M:%S")
-    #df = create_inclusive_array()
+    #if 'df' not in globals: df = create_inclusive_array()
     train, test = train_test_split(df, shuffle=False)
     unscaled_y = test.iloc[lookback:-horizon, :]
     scaler = MinMaxScaler()
@@ -35,24 +35,23 @@ def distribute_predictions(prefix='./30Min_2019/', suffix = '_30Min.pickle'):
     test = scaler.transform(test) # avoid lookahead bias
     n_predictions = len(test) - horizon - lookback
     predictions = np.empty((n_predictions, 36))
-    for i, c1 in enumerate(insts):
-        predictions[:, i], _ = pipeline_df(train[:, i], test[:, i])
-        ctime.append(_)
+    for i, _ in enumerate(insts):
+        predictions[:, i], t = pipeline_df(train[:, i], test[:, i])
+        ctime.append(t)
+        current_pair = pair_map[i]
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            for _ in executor.map(lambda x:
-            pipeline_df(train[:, 8+x], test[:, 8+x]), range(28)):
-                if _ is not None: # non-currency pairs e.g. USD/GBP
-                    predictions[:, 8+i] = _[0]
-                    ptime.append(_[1])
-        print(f'{c1} done')
+            for k, pred_t in enumerate(executor.map(lambda x:
+            pipeline_df(train[:, 8+x], test[:, 8+x]), current_pair)):
+                if pred_t is not None: # non-currency pairs e.g. USD/GBP
+                    predictions[:, 8+current_pair[k]] = pred_t[0]
+                    ptime.append(pred_t[1])
+                    print(f'{pairs[current_pair[k]]} done')
     predictions = scaler.inverse_transform(predictions)
     #return predictions, unscaled_y-predictions, mape(unscaled_y, predictions)
     mapes = list()
     for i in range(predictions.shape[1]):
         mapes.append(mape(unscaled_y.iloc[:, i], predictions[:, i]))
-    currency_accuracy = mapes[:8]
-    pair_accuracy = mapes[8:]
-    print_results()
+    print_results(ctime, ptime, mapes[:8], mapes[8:])
     return predictions, unscaled_y, ctime, ptime, mapes
 
 def pipeline_df(train, test, n_features=1):
