@@ -1,0 +1,11 @@
+
+*.rds
+*.npy
+*.pickle
+*.csv
+*.7z
+*.graphml
+*.pdf
+*.krs
+*.pb
+*.index
