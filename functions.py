@@ -124,8 +124,9 @@ def print_results(): # previously in runAll.py
 def print_results(ctime, ptime, currency_accuracy, pair_accuracy):
     sumc = sum(ctime)
     sump = sum(ptime)
-    print(mean(currency_accuracy))
-    print(mean(pair_accuracy))
+    print('Mean Absolute Percentage Error')
+    print(f'Pair MAPE: {mean(pair_accuracy)}')
+    print(f'Currency MAPE: {mean(currency_accuracy)} (Lower is desirable)')
     print(f'Took {round(sump)} sec to process pairs but only \
     {round(sumc)} sec to process currencies...')
     shv = "{:.0%}".format((sump-sumc) / sump)
