@@ -40,3 +40,4 @@ predictions, unscaled_y, ctime, ptime, mapes = distribute_predictions(prefix='./
 df = create_inclusive_array()
 predictions, unscaled_y, ctime, ptime, mapes = distribute_predictions(df)
 
+units, learning_rate, best_epoch = prepare_run_hypersearch(35)

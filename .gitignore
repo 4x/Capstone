@@ -13,3 +13,4 @@
 *.pyc
 *.ini
 *.spydata
+.Rhistory
