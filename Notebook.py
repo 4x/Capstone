@@ -22,9 +22,6 @@ with open(f, "rb") as pickle_file:
 
 pipeline12(f)
 
-currency_pairs = create_currency_pair_list()
-
-
 syn_forecast, syn_accuracy, stime = syn_forecasts()
 
 for i in currency_frcast:
@@ -38,3 +35,4 @@ currency_pairs = create_currency_pair_list()
 currency_accuracy, currency_frcast, currency_actual, ctime,\
         pair_accuracy, pair_frcast, pair_actual, ptime =\
     distribute_predictions(prefix='./30Min_2019/', suffix = '_30Min.pickle')
+sitp = distribute_predictions(prefix='./30Min_2019/', suffix = '_30Min.pickle')

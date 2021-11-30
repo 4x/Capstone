@@ -83,14 +83,14 @@ def splitXy(data, lookback=5, horizon=1):
     for i in range(n_inputs):        
         last_obs = i + lookback # last observation for this time step    e.g. 5
         last_prediction = last_obs + horizon # furthest time to predict (not inclusive)    e.g. 6
-        X[i] = data[i:last_obs] # HLC                   e.g. [0, 1, 2, 3, 4]    
+        X[i] = data[i:last_obs].reshape(-1, 1) # HLC                   e.g. [0, 1, 2, 3, 4]    
         y[i] = data[last_prediction] # Next period's C e.g. 5:6 i.e. [5]
     return X, y
 
 def model_builder(shape, lstm_units=64, dropout=0.01, channels=1):
     rnn = Sequential([LSTM(units = lstm_units,
-        #return_sequences = False,  input_shape=shape),
-        return_sequences = False),
+        return_sequences = False,  input_shape=shape),
+        #return_sequences = False),
             Dropout(dropout),
             Dense(channels)]) # Output layer
     learning_rate = 1e-3
