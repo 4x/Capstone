@@ -16,7 +16,7 @@ The first part of the work (described above) was done primarily using R.
 ## Refined Signal / Reduced Noise
 My hypothesis is that almost any model that predicts price using historical chart patterns, or algorithm that trades based on price action, could be improved by first reducing the dimensionality of the data. Of course, I cannot prove this general statement; however, here I demonstrate with an example.
 
-## Data
+## Data Acquisition and Wrangling
 Forex data is available freely from numerous sources. For this project it was very important to use tick data: otherwise, OHLC (open, high, low, close) time series cannot be properly constructed for currencies, even if we only need lower frequencies.
 The data was downloaded via Dukascopy's JForex platform (free when you sign up for a demo account). It was then "lined up" by data/time inside `pandas` dataframes ('create_ticks(year=2019)').
 It was further manipulated (e.g. resampled) as needed, for example using `pd.p.resample(freq).ohlc()` (inside `create_ts(freq)`) before being used as input to the prediction models.
