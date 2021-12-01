@@ -39,3 +39,9 @@ There are many ways to compare the performance of various prediction models. I c
 
 ## Results
 What we see is that if we compare the price prediction of these two sets, the latter performs much better. More important are the practical applications: for example, the if we divide the prediction of our EUR time series by the prediction of our USD time series, we usually get much closer to the actual market value, than does the prediction of the EUR/USD (without separating and reconstituting).
+
+## Not Good. Better.
+I would like to reiterate that I am developing more of a filter than a prediction model or trading algorithm. While I made sure to develop the neural network properly, I am not claiming that the neural network itself is a good tool to forecast currency movements. Rather, I am saying that using _currencies_, as extracted here, rather than currency _pairs_, **improves** the performance of the tool that is already being used (the neural network, in this particular example).
+
+### Disclaimer
+This program is for educational purposes. I am not suggesting you invest, buy, or sell anything. You are on you own.
