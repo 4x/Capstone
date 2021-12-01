@@ -1,8 +1,8 @@
 from pandas import DataFrame, merge, concat, Series
 import pickle
 from numpy import empty, mean, squeeze
-from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, LSTM, Dropout
 from tensorflow.keras.optimizers import Adam
@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import keras_tuner
 import time
 import logging
+import concurrent.futures
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
@@ -25,9 +26,9 @@ pair_map = [[0, 3, 4, 5, 6], [9, 10, 11, 12], [1, 7, 13, 14, 15, 16, 17],\
     [2, 8, 18, 19, 20, 21], [22, 23], [25], [], [24, 26, 27]]
 
 # parameters
-lookback = 9 # number of previous time steps to use as input
+lookback = 8 # number of previous time steps to use as input
+horizon = 3 # number of time steps ahead to predict
 n_features = 1
-horizon = 4 # number of time steps ahead to predict
 
 # Network hyperparameters
 model_path = r'\LSTM_Multivariate.h5'
@@ -44,6 +45,7 @@ def envelope(df):
     mapes = list()
     format = "%(asctime)s: %(message)s"
     logging.basicConfig(format=format, level=logging.WARN, datefmt="%H:%M:%S")
+    logger = logging.getLogger('functions')
     if 'df' not in globals() and 'df' not in locals():
         df = create_inclusive_array()
     train, test = train_test_split(df, shuffle=False)
@@ -52,20 +54,14 @@ def envelope(df):
     
     for i in range(predictions.shape[1]):
         mapes.append(mape(unscaled_y.iloc[:, i], predictions[:, i]))
-    print_results(ctime, ptime, mapes[:8], mapes[8:])
     divided = divide_currencies(predictions)
     predicted_pairs = predictions[:, 8:]
-    #return predictions, unscaled_y, divided, mapes
     true_pairs = unscaled_y.iloc[:, 8:]
     divided_currency_err = mape(true_pairs, divided)
-    #market_pair_err = mape(true_pairs, predicted_pairs)
     mape_improvement =concat([Series(mapes[8:],
     index=divided_currency_err.index), divided_currency_err], axis=1)\
             .assign(improvement = lambda x: ((x[0] - x[1]) / x[0])*100)
-    print(mape_improvement)
-    print(f'Prediction error for market pairs is {mean(mapes[8:])} on average')
-    print(f'But only {mean(divided_currency_err)} with this method.')
-    print(f'Improved results for {mape_improvement[mape_improvement.improvement > 0].count()[0]}/28 currency pairs')
+    print_results(ctime, ptime, mapes[:8], mapes[8:])
     return predictions, unscaled_y, ctime, ptime, mapes, mape_improvement
 
 def create_inclusive_array(freq='30Min', year=2019, features=1, C=True,P=True):
@@ -171,8 +167,6 @@ def pipeline_df(train, test, n_features=1):
 
 def mape(actual, forecast):
     '''Mean Absolute Percentage Error'''
-    #if actual.ndim > 1: actual = np.reshape(actual, -1)
-    #if forecast.ndim > 1: forecast = np.reshape(forecast, -1)
     return mean(abs((forecast - actual) / actual)) * 100
 
 def map_pairs_to_currency():
@@ -196,16 +190,17 @@ def divide_currencies(predictions):
         divided[:, i] = (predictions[:, b] / predictions[:, q]).flatten()
     return divided
 
-def print_results(ctime, ptime, currency_accuracy, pair_accuracy):
-    sumc = sum(ctime)
-    sump = sum(ptime)
+def print_results(ct, pt, currency_accuracy, pair_accuracy, mape_improvement):
+    sumc = sum(ct)
+    sump = sum(pt)
+    print(mape_improvement)
+    print(f'Improved results for {mape_improvement[mape_improvement.improvement > 0].count()[0]}/28 currency pairs')
     print('Mean Absolute Percentage Errors:')
     print(f'Pair: {round(mean(pair_accuracy), 2)}%')
     print(f'Currency: {round(mean(currency_accuracy), 2)}% (Lower is better)')
     print(f'Took {round(sump)} sec to process pairs but only \
     {round(sumc)} sec to process currencies...')
-    shv = "{:.0%}".format((sump-sumc) / sump)
-    print('... shaving off ' + shv)
+    print("... shaving off {:.0%}".format((sump-sumc) / sump))
 
 def plot_training(history):
     plt.plot(history.history['loss'])

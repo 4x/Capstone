@@ -7,4 +7,4 @@ units, learning_rate, best_epoch = prepare_run_hypersearch(35)
 
 predictions, unscaled_y, ctime, ptime, mapes, compa = envelope(df)
 
-predictions, unscaled_y, divided, mapes = envelope(df)
+

@@ -7,7 +7,6 @@ from os import path
 import time
 from sklearn.preprocessing import MinMaxScaler
 import logging
-import concurrent.futures
 from numpy import empty, squeeze
 from tensorflow.keras import callbacks
 
