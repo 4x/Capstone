@@ -1,15 +1,20 @@
-import pandas as pd
+from pandas import DataFrame, merge, concat, Series
 import pickle
-import numpy as np
+from numpy import empty, mean, squeeze
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import train_test_split
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, LSTM, Dropout
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras import callbacks, Input, losses
-from statistics import mean
+from tensorflow.keras import callbacks
 import matplotlib.pyplot as plt
-from os import path
 import keras_tuner
+import time
+import logging
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
+# Global lists
 insts = ["AUD", "NZD", "EUR", "GBP", "CAD", "CHF", "JPY", "USD"]
 pairs = ['AUDNZD', 'EURAUD', 'GBPAUD', 'AUDCAD', 'AUDCHF', 'AUDJPY', 'AUDUSD',\
      'EURNZD', 'GBPNZD', 'NZDCAD', 'NZDCHF', 'NZDJPY', 'NZDUSD', 'EURGBP',\
@@ -19,13 +24,57 @@ n_insts = len(insts)
 pair_map = [[0, 3, 4, 5, 6], [9, 10, 11, 12], [1, 7, 13, 14, 15, 16, 17],\
     [2, 8, 18, 19, 20, 21], [22, 23], [25], [], [24, 26, 27]]
 
+# parameters
+lookback = 9 # number of previous time steps to use as input
+n_features = 1
+horizon = 4 # number of time steps ahead to predict
+
+# Network hyperparameters
+model_path = r'\LSTM_Multivariate.h5'
+bch_size = 32
+
+# per hypertuner:
+epochs = 1
+#learning_rate = 10 ** -5
+#lstm_units = 256
+
+def envelope(df):
+    '''Splits data into train/test, sends off to scale_distribute for
+    fitting and predicting, and measures and reports performance.'''
+    mapes = list()
+    format = "%(asctime)s: %(message)s"
+    logging.basicConfig(format=format, level=logging.WARN, datefmt="%H:%M:%S")
+    if 'df' not in globals() and 'df' not in locals():
+        df = create_inclusive_array()
+    train, test = train_test_split(df, shuffle=False)
+    unscaled_y = test.iloc[lookback:-horizon, :] # save for later before
+    predictions, ctime, ptime = scale_distribute(train, test)
+    
+    for i in range(predictions.shape[1]):
+        mapes.append(mape(unscaled_y.iloc[:, i], predictions[:, i]))
+    print_results(ctime, ptime, mapes[:8], mapes[8:])
+    divided = divide_currencies(predictions)
+    predicted_pairs = predictions[:, 8:]
+    #return predictions, unscaled_y, divided, mapes
+    true_pairs = unscaled_y.iloc[:, 8:]
+    divided_currency_err = mape(true_pairs, divided)
+    #market_pair_err = mape(true_pairs, predicted_pairs)
+    mape_improvement =concat([Series(mapes[8:],
+    index=divided_currency_err.index), divided_currency_err], axis=1)\
+            .assign(improvement = lambda x: ((x[0] - x[1]) / x[0])*100)
+    print(mape_improvement)
+    print(f'Prediction error for market pairs is {mean(mapes[8:])} on average')
+    print(f'But only {mean(divided_currency_err)} with this method.')
+    print(f'Improved results for {mape_improvement[mape_improvement.improvement > 0].count()[0]}/28 currency pairs')
+    return predictions, unscaled_y, ctime, ptime, mapes, mape_improvement
+
 def create_inclusive_array(freq='30Min', year=2019, features=1, C=True,P=True):
     '''Put all currencies and/or all pairs into one dataframe, so that the time
     index exactly aligns: this makes comparisons easier.
     4 features → OHLC
     3 features → HLC
     1 feature → C only.'''
-    df = pd.DataFrame()
+    df = DataFrame()
     col = 0
     if C: # include currencies
         for c1 in insts:
@@ -33,7 +82,7 @@ def create_inclusive_array(freq='30Min', year=2019, features=1, C=True,P=True):
             with open("./"+freq+"_"+str(year)+"/"+c1 +'_'+freq+'.pickle','rb')\
             as pickle_file:
                 d = pickle.load(pickle_file).iloc[:,-features:]
-            df = pd.merge(df,d, left_index=True,right_index=True, how='outer',\
+            df = merge(df,d, left_index=True,right_index=True, how='outer',\
                     suffixes=(None, c1))
         col += len(insts) * features # 4 columns per currency
     if P: # include pairs
@@ -42,7 +91,7 @@ def create_inclusive_array(freq='30Min', year=2019, features=1, C=True,P=True):
             with open("./"+freq+"_"+str(year)+"/"+c1 +'_'+freq+'.pickle','rb')\
             as pickle_file:
                 d = pickle.load(pickle_file).iloc[:,-features:]
-            df = pd.merge(df,d, left_index=True, right_index=True,how='outer',\
+            df = merge(df,d, left_index=True, right_index=True,how='outer',\
                     suffixes=(None, c1))
         col += len(pairs) * features # 4 columns per currency
     assert df.shape[1] == col
@@ -51,8 +100,7 @@ def create_inclusive_array(freq='30Min', year=2019, features=1, C=True,P=True):
 def splitXy(data, lookback=5, horizon=1):
     '''split a 3D multivariate sequence into input X and output y'''
     n_inputs = len(data) - lookback - horizon
-    X = np.empty((n_inputs, lookback, 1))
-    y = np.empty(n_inputs)
+    X, y = empty((n_inputs, lookback, 1)), empty(n_inputs)
     for i in range(n_inputs):        
         last_obs = i + lookback # last observation for this time step    e.g. 5
         last_prediction = last_obs + horizon # furthest time to predict (not inclusive)    e.g. 6
@@ -125,7 +173,7 @@ def mape(actual, forecast):
     '''Mean Absolute Percentage Error'''
     #if actual.ndim > 1: actual = np.reshape(actual, -1)
     #if forecast.ndim > 1: forecast = np.reshape(forecast, -1)
-    return np.mean(abs((forecast - actual) / actual)) * 100
+    return mean(abs((forecast - actual) / actual)) * 100
 
 def map_pairs_to_currency():
     matching_pairs = list()
@@ -140,7 +188,7 @@ def map_pairs_to_currency():
     return matching_pairs
 
 def divide_currencies(predictions):
-    divided = np.empty((predictions.shape[0], 28))
+    divided = empty((predictions.shape[0], 28))
     for i, pair in enumerate(pairs):
         base, quote = pair[:3], pair[3:]
         b = insts.index(base)
@@ -148,48 +196,12 @@ def divide_currencies(predictions):
         divided[:, i] = (predictions[:, b] / predictions[:, q]).flatten()
     return divided
 
-def syn_forecasts():
-    tic = time.perf_counter()
-    syn_forecast, syn_accuracy, stime = [], [], []
-    currency1 = 0
-    pair_counter = 0
-    for i, c1 in enumerate(insts):
-        currency2 = 0
-        for j, c2 in enumerate(insts):
-            c12 = c1 + c2
-            # f = c12 + "vector.rds"
-            if c12 in pairs:
-                tic = time.perf_counter()
-                ff = np.squeeze(currency_frcast[i] / currency_frcast[j])
-                m = mape(pair_actual[pair_counter], ff)
-                syn_forecast.append(ff)
-                syn_accuracy.append(m)
-                pair_counter += 1
-            currency2 += 1
-        currency1 += 1
-    print(pair_counter)
-    stime.append(time.perf_counter() - tic)
-    return syn_forecast, syn_accuracy, stime
-
-def print_results(): # previously in runAll.py
-    sumc = sum(ctime)
-    sump = sum(ptime)
-    print(mean(currency_accuracy))
-    print(mean(pair_accuracy))
-    #print(mean(syn_accuracy))
-    #accuracy_diff = np.array(pair_accuracy) - np.array(syn_accuracy)
-    #print(mean(accuracy_diff))
-    print(f'Took {round(sump)} sec to process pairs but only \
-    {round(sumc)} sec to process currencies...')
-    shv = "{:.0%}".format((sump-sumc) / sump)
-    print('... shaving off ' + shv)
-
 def print_results(ctime, ptime, currency_accuracy, pair_accuracy):
     sumc = sum(ctime)
     sump = sum(ptime)
-    print('Mean Absolute Percentage Error')
-    print(f'Pair MAPE: {mean(pair_accuracy)}')
-    print(f'Currency MAPE: {mean(currency_accuracy)} (Lower is desirable)')
+    print('Mean Absolute Percentage Errors:')
+    print(f'Pair: {round(mean(pair_accuracy), 2)}%')
+    print(f'Currency: {round(mean(currency_accuracy), 2)}% (Lower is better)')
     print(f'Took {round(sump)} sec to process pairs but only \
     {round(sumc)} sec to process currencies...')
     shv = "{:.0%}".format((sump-sumc) / sump)
