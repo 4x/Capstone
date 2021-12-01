@@ -18,7 +18,7 @@ My hypothesis is that almost any model that predicts price using historical char
 
 ## Data Acquisition and Wrangling
 Forex data is available freely from numerous sources. For this project it was very important to use tick data: otherwise, OHLC (open, high, low, close) time series cannot be properly constructed for currencies, even if we only need lower frequencies.
-The data was downloaded via Dukascopy's JForex platform (free when you sign up for a demo account). It was then "lined up" by data/time inside `pandas` dataframes ('create_ticks(year=2019)').
+The data was downloaded via Dukascopy's [JForex](https://www.dukascopy.com/swiss/english/forex/jforex/) platform (free when you sign up for a demo account). It was then "lined up" by data/time inside `pandas` dataframes ('create_ticks(year=2019)').
 It was further manipulated (e.g. resampled) as needed, for example using `pd.p.resample(freq).ohlc()` (inside `create_ts(freq)`) before being used as input to the prediction models.
 
 ## Demonstration: Neural Network
@@ -27,11 +27,9 @@ We construct several `TensorFlow/Keras` neural networks, and compare their perfo
 All time series were split into training and test sets using `sklearn.model_selection.train_test_split`. They were then fed into a neural network with two `LSTM` layers, which are particularly suited for time series. The hyperparameters were optimized with `KerasTuner`.
 
 ## Distributed Computing
-This project relies on 36 simultaneous neural networks: 28 for the currencies, and eight for the underlying currencies. To split the load among the processors and cores, the computations are executed asynchronously using `ThreadPoolExecutor` (in `distribute_predictions(prefix, suffix)`.
-
+This project relies on 36 simultaneous neural networks: 28 for the currencies, and eight for the underlying currencies. To split the load among the processors and cores, the computations are executed asynchronously using `ThreadPoolExecutor` (in `scale_distribute(train, test)`.
 
 ![Model Losses](./ModelLosses.png)
-
 
 ## Measuring Forecast Accuracy
 There are many ways to compare the performance of various prediction models. I chose *Mean Absolute Percentage Error*, or MAPE, which is calculated as:

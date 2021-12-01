@@ -27,7 +27,7 @@ def create_inclusive_array(freq='30Min', year=2019, features=1, C=True,P=True):
     1 feature → C only.'''
     df = pd.DataFrame()
     col = 0
-    if C:
+    if C: # include currencies
         for c1 in insts:
             print(c1)
             with open("./"+freq+"_"+str(year)+"/"+c1 +'_'+freq+'.pickle','rb')\
@@ -36,7 +36,7 @@ def create_inclusive_array(freq='30Min', year=2019, features=1, C=True,P=True):
             df = pd.merge(df,d, left_index=True,right_index=True, how='outer',\
                     suffixes=(None, c1))
         col += len(insts) * features # 4 columns per currency
-    if P:
+    if P: # include pairs
         for c1 in pairs:
             print(c1)
             with open("./"+freq+"_"+str(year)+"/"+c1 +'_'+freq+'.pickle','rb')\
@@ -65,7 +65,6 @@ def model_builder(shape, lstm_units=256, dropout=0.01, channels=1):
         return_sequences = False,  input_shape=shape),
             Dropout(dropout),
             Dense(channels)]) # Output layer
-    #learning_rate = 10 ** -5
     rnn.compile(optimizer = Adam(learning_rate = 10 ** -5),
                 loss = 'mean_squared_error')
     return rnn
@@ -85,7 +84,8 @@ def model_tuner(hp):
                 loss='mean_squared_error', metrics=['accuracy'])
     return rnn
 
-def scale_fit_predict(train, test):
+def scale_distribute(train, test):
+    '''Scale all prices, distribute fitting and prediction, rescale back.'''
     ptime, ctime = list(), list()
     scaler = MinMaxScaler() # One Scaler for the whole dataframe
     train = scaler.fit_transform(train)
@@ -105,20 +105,36 @@ def scale_fit_predict(train, test):
     predictions = scaler.inverse_transform(predictions) # All at once
     return predictions, ctime, ptime
 
+def pipeline_df(train, test, n_features=1):
+    '''All steps necessary from dataframe input to training and prediction.'''
+    tic = time.perf_counter()
+    X_train, y_train = splitXy(train, lookback, horizon)
+    X_test, _ = splitXy(test, lookback, horizon)
+    
+    # Construct and train model
+    model = model_builder((lookback, 1))
+    history = model.fit(X_train, y_train, validation_split=0.2,
+        epochs = epochs, batch_size = bch_size,
+        callbacks = [callbacks.EarlyStopping(monitor='val_loss',
+        min_delta=0, patience=10, verbose=1, mode='min'),
+            callbacks.ModelCheckpoint(model_path, monitor='val_loss',
+            save_best_only=True, mode='min', verbose=0)])
+    return squeeze(model.predict(X_test)), time.perf_counter() - tic
+
 def mape(actual, forecast):
     '''Mean Absolute Percentage Error'''
     #if actual.ndim > 1: actual = np.reshape(actual, -1)
     #if forecast.ndim > 1: forecast = np.reshape(forecast, -1)
-    return np.mean(abs((forecast - actual) / actual))
+    return np.mean(abs((forecast - actual) / actual)) * 100
 
 def map_pairs_to_currency():
     matching_pairs = list()
     for i, c1 in enumerate(insts):
-        _ = list()
+        p = list()
         for j, pair in enumerate(pairs):
             if pair[:3] == c1:
-                _.append(j)
-        matching_pairs.append(_)
+                p.append(j)
+        matching_pairs.append(p)
     assert len(matching_pairs) == n_insts
     print(matching_pairs)
     return matching_pairs

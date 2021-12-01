@@ -25,33 +25,31 @@ epochs = 1
 #learning_rate = 10 ** -5
 #lstm_units = 256
 
-def distribute_predictions(df):
+def envelope(df):
+    '''Splits data into train/test, sends off to scale_distribute for
+    fitting and predicting, and measures and reports performance.'''
     mapes = list()
     format = "%(asctime)s: %(message)s"
     logging.basicConfig(format=format, level=logging.WARN, datefmt="%H:%M:%S")
-    if ('df' not in globals()) and ('df' not in locals()):
+    if 'df' not in globals() and 'df' not in locals():
         df = create_inclusive_array()
     train, test = train_test_split(df, shuffle=False)
     unscaled_y = test.iloc[lookback:-horizon, :] # save for later before
-    predictions, ctime, ptime = scale_fit_predict(train, test)
+    predictions, ctime, ptime = scale_distribute(train, test)
     
     for i in range(predictions.shape[1]):
         mapes.append(mape(unscaled_y.iloc[:, i], predictions[:, i]))
     print_results(ctime, ptime, mapes[:8], mapes[8:])
+    divided = divide_currencies(predictions)
+    predicted_pairs = predictions[:, 8:]
+    true_pairs = np.array(unscaled_y.iloc[:, 8:])
+    divided_currency_err = mape(true_pairs, divided)
+    market_pair_err = mape(true_pairs, predicted_pairs)
+    print(f'Prediction error for market pairs is {mean(market_pair_err)} on average.')
+    print(f'But only {mean(divided_currency_err)} if separating to currencies first.')
+    improved = 0
+    for i in range(pairs):
+        print(f'{pairs[i]} direct: {market_pair_err[i]} indirect: {divided_currency_err[i]}')
+        if divided_currency_err[i] < market_pair_err[i]: improved += 1
+    print(f'Improved results for {improved}/28 currency pairs')
     return predictions, unscaled_y, ctime, ptime, mapes
-
-def pipeline_df(train, test, n_features=1):
-    '''All steps necessary from dataframe input to training and prediction.'''
-    tic = time.perf_counter()
-    X_train, y_train = splitXy(train, lookback, horizon)
-    X_test, _ = splitXy(test, lookback, horizon)
-    
-    # Construct and train model
-    model = model_builder((lookback, 1))
-    history = model.fit(X_train, y_train, validation_split=0.2,
-        epochs = epochs, batch_size = bch_size,
-        callbacks = [callbacks.EarlyStopping(monitor='val_loss',
-        min_delta=0, patience=10, verbose=1, mode='min'),
-            callbacks.ModelCheckpoint(model_path, monitor='val_loss',
-            save_best_only=True, mode='min', verbose=0)])
-    return squeeze(model.predict(X_test)), time.perf_counter() - tic
