@@ -8,10 +8,10 @@ from tensorflow.keras.layers import Dense, LSTM, Dropout
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras import callbacks
 import matplotlib.pyplot as plt
-import keras_tuner
-import time
+from keras_tuner import Hyperband
+from time import perf_counter
 import logging
-import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
@@ -26,8 +26,8 @@ pair_map = [[0, 3, 4, 5, 6], [9, 10, 11, 12], [1, 7, 13, 14, 15, 16, 17],\
     [2, 8, 18, 19, 20, 21], [22, 23], [25], [], [24, 26, 27]]
 
 # parameters
-lookback = 8 # number of previous time steps to use as input
-horizon = 3 # number of time steps ahead to predict
+lookback = 3 # number of previous time steps to use as input
+horizon = 10 # number of time steps ahead to predict
 n_features = 1
 
 # Network hyperparameters
@@ -61,7 +61,7 @@ def envelope(df):
     mape_improvement =concat([Series(mapes[8:],
     index=divided_currency_err.index), divided_currency_err], axis=1)\
             .assign(improvement = lambda x: ((x[0] - x[1]) / x[0])*100)
-    print_results(ctime, ptime, mapes[:8], mapes[8:])
+    print_results(ctime, ptime, mapes[:8], mapes[8:], mape_improvement)
     return predictions, unscaled_y, ctime, ptime, mapes, mape_improvement
 
 def create_inclusive_array(freq='30Min', year=2019, features=1, C=True,P=True):
@@ -139,7 +139,7 @@ def scale_distribute(train, test):
         predictions[:, i], t = pipeline_df(train[:, i], test[:, i])
         ctime.append(t)
         current_pair = pair_map[i]
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutor() as executor:
             for k, pred_t in enumerate(executor.map(lambda x:
             pipeline_df(train[:, 8+x], test[:, 8+x]), current_pair)):
                 if pred_t is not None: # non-currency pairs e.g. USD/GBP
@@ -151,7 +151,7 @@ def scale_distribute(train, test):
 
 def pipeline_df(train, test, n_features=1):
     '''All steps necessary from dataframe input to training and prediction.'''
-    tic = time.perf_counter()
+    tic = perf_counter()
     X_train, y_train = splitXy(train, lookback, horizon)
     X_test, _ = splitXy(test, lookback, horizon)
     
@@ -163,7 +163,7 @@ def pipeline_df(train, test, n_features=1):
         min_delta=0, patience=10, verbose=1, mode='min'),
             callbacks.ModelCheckpoint(model_path, monitor='val_loss',
             save_best_only=True, mode='min', verbose=0)])
-    return squeeze(model.predict(X_test)), time.perf_counter() - tic
+    return squeeze(model.predict(X_test)), perf_counter() - tic #,history 
 
 def mape(actual, forecast):
     '''Mean Absolute Percentage Error'''
@@ -211,6 +211,18 @@ def plot_training(history):
     plt.legend(['train', 'val'], loc='upper left')
     plt.show()
 
+def plot_predictions(x, true_y, direct_prediction, divided_prediction):
+    plt.plot(x, true_y)
+    plt.plot(x, direct_prediction)
+    plt.plot(x, divided_prediction)
+    plt.plot(history.history['val_loss'])
+    plt.title('Training the neural network')
+    plt.ylabel('Loss')
+    plt.xlabel('Epoch')
+    plt.legend(['train', 'val'], loc='upper left')
+    plt.show()
+
+# Hyperparameter search/optimization
 def prepare_run_hypersearch(df, col=0):
     train, test = train_test_split(df, shuffle=False)
     scaler = MinMaxScaler()
@@ -222,7 +234,7 @@ def prepare_run_hypersearch(df, col=0):
 
 def optimize_nn(X, y, X_test, y_test):
     stop_early = callbacks.EarlyStopping(monitor='val_loss', patience=5)
-    tuner = keras_tuner.Hyperband(model_tuner,
+    tuner = Hyperband(model_tuner,
                         objective='val_accuracy',
                         max_epochs=10,
                         factor=3,
