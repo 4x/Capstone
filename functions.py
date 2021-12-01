@@ -2,14 +2,13 @@ import pandas as pd
 import pickle
 import numpy as np
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, LSTM, Dropout, Flatten
+from tensorflow.keras.layers import Dense, LSTM, Dropout
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras import callbacks, Input, losses
 from statistics import mean
 import matplotlib.pyplot as plt
 from os import path
 import keras_tuner
-from tensorflow.keras import callbacks
 
 insts = ["AUD", "NZD", "EUR", "GBP", "CAD", "CHF", "JPY", "USD"]
 pairs = ['AUDNZD', 'EURAUD', 'GBPAUD', 'AUDCAD', 'AUDCHF', 'AUDJPY', 'AUDUSD',\
@@ -19,6 +18,7 @@ pairs = ['AUDNZD', 'EURAUD', 'GBPAUD', 'AUDCAD', 'AUDCHF', 'AUDJPY', 'AUDUSD',\
 n_insts = len(insts)
 pair_map = [[0, 3, 4, 5, 6], [9, 10, 11, 12], [1, 7, 13, 14, 15, 16, 17],\
     [2, 8, 18, 19, 20, 21], [22, 23], [25], [], [24, 26, 27]]
+
 def create_inclusive_array(freq='30Min', year=2019, features=1, C=True,P=True):
     '''Put all currencies and/or all pairs into one dataframe, so that the time
     index exactly aligns: this makes comparisons easier.
@@ -63,7 +63,6 @@ def splitXy(data, lookback=5, horizon=1):
 def model_builder(shape, lstm_units=256, dropout=0.01, channels=1):
     rnn = Sequential([LSTM(units = lstm_units,
         return_sequences = False,  input_shape=shape),
-        #return_sequences = False),
             Dropout(dropout),
             Dense(channels)]) # Output layer
     #learning_rate = 10 ** -5
@@ -86,9 +85,31 @@ def model_tuner(hp):
                 loss='mean_squared_error', metrics=['accuracy'])
     return rnn
 
+def scale_fit_predict(train, test):
+    ptime, ctime = list(), list()
+    scaler = MinMaxScaler() # One Scaler for the whole dataframe
+    train = scaler.fit_transform(train)
+    test = scaler.transform(test) # avoid lookahead bias
+    predictions = empty((len(test) - horizon - lookback, 36))
+    for i in range(n_insts):
+        predictions[:, i], t = pipeline_df(train[:, i], test[:, i])
+        ctime.append(t)
+        current_pair = pair_map[i]
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            for k, pred_t in enumerate(executor.map(lambda x:
+            pipeline_df(train[:, 8+x], test[:, 8+x]), current_pair)):
+                if pred_t is not None: # non-currency pairs e.g. USD/GBP
+                    predictions[:, 8+current_pair[k]] = pred_t[0]
+                    ptime.append(pred_t[1])
+                    print(f'{pairs[current_pair[k]]} done')
+    predictions = scaler.inverse_transform(predictions) # All at once
+    return predictions, ctime, ptime
+
 def mape(actual, forecast):
     '''Mean Absolute Percentage Error'''
-    return mean(abs((forecast - actual) / actual))
+    #if actual.ndim > 1: actual = np.reshape(actual, -1)
+    #if forecast.ndim > 1: forecast = np.reshape(forecast, -1)
+    return np.mean(abs((forecast - actual) / actual))
 
 def map_pairs_to_currency():
     matching_pairs = list()
@@ -101,6 +122,15 @@ def map_pairs_to_currency():
     assert len(matching_pairs) == n_insts
     print(matching_pairs)
     return matching_pairs
+
+def divide_currencies(predictions):
+    divided = np.empty((predictions.shape[0], 28))
+    for i, pair in enumerate(pairs):
+        base, quote = pair[:3], pair[3:]
+        b = insts.index(base)
+        q = insts.index(quote)
+        divided[:, i] = (predictions[:, b] / predictions[:, q]).flatten()
+    return divided
 
 def syn_forecasts():
     tic = time.perf_counter()
@@ -158,7 +188,7 @@ def plot_training(history):
     plt.legend(['train', 'val'], loc='upper left')
     plt.show()
 
-def prepare_run_hypersearch(col=0):
+def prepare_run_hypersearch(df, col=0):
     train, test = train_test_split(df, shuffle=False)
     scaler = MinMaxScaler()
     train = scaler.fit_transform(train)[:, col]

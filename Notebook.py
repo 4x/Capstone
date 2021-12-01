@@ -41,3 +41,15 @@ df = create_inclusive_array()
 predictions, unscaled_y, ctime, ptime, mapes = distribute_predictions(df)
 
 units, learning_rate, best_epoch = prepare_run_hypersearch(35)
+
+divided = divide_currencies(predictions)
+predicted_pairs = predictions[:, 8:]
+true_pairs = np.array(unscaled_y.iloc[:, 8:])
+mape(true_pairs, divided)
+mape(true_pairs, predicted_pairs)
+
+d = true_pairs - predicted_pairs
+d = d / true_pairs
+m = abs(d)
+m = mean(d.flatten())
+
