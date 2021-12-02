@@ -1,12 +1,13 @@
 from pandas import DataFrame, merge, concat, Series
 import pickle
-from numpy import empty, mean, squeeze
+from numpy import empty, mean, squeeze, column_stack
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, LSTM, Dropout
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras import callbacks
+from keras.regularizers import L1L2
 import matplotlib.pyplot as plt
 from keras_tuner import Hyperband
 from time import perf_counter
@@ -26,13 +27,13 @@ pair_map = [[0, 3, 4, 5, 6], [9, 10, 11, 12], [1, 7, 13, 14, 15, 16, 17],\
     [2, 8, 18, 19, 20, 21], [22, 23], [25], [], [24, 26, 27]]
 
 # parameters
-lookback = 3 # number of previous time steps to use as input
+lookback = 1 # number of previous time steps to use as input
 horizon = 10 # number of time steps ahead to predict
 n_features = 1
 
 # Network hyperparameters
 model_path = r'\LSTM_Multivariate.h5'
-bch_size = 32
+bch_size = 1
 
 # per hypertuner:
 epochs = 1
@@ -55,14 +56,21 @@ def envelope(df):
     for i in range(predictions.shape[1]):
         mapes.append(mape(unscaled_y.iloc[:, i], predictions[:, i]))
     divided = divide_currencies(predictions)
-    predicted_pairs = predictions[:, 8:]
+    #predicted_pairs = predictions[:, 8:]
     true_pairs = unscaled_y.iloc[:, 8:]
     divided_currency_err = mape(true_pairs, divided)
-    mape_improvement =concat([Series(mapes[8:],
+    mape_improvement = concat([Series(mapes[8:],
     index=divided_currency_err.index), divided_currency_err], axis=1)\
             .assign(improvement = lambda x: ((x[0] - x[1]) / x[0])*100)
     print_results(ctime, ptime, mapes[:8], mapes[8:], mape_improvement)
-    return predictions, unscaled_y, ctime, ptime, mapes, mape_improvement
+    pair = 17 # EUR/USD
+    d = DataFrame(column_stack([unscaled_y.iloc[:, 8+pair],
+        predictions[:, 8+pair], divided[:, pair]]), index=unscaled_y.index,
+        columns=['Actual', 'Direct prediction', 'Divided currencies'])
+    plt.plot(d)
+    plt.title(pairs[pair])
+    plt.show()
+    return predictions, divided, unscaled_y, mapes, mape_improvement
 
 def create_inclusive_array(freq='30Min', year=2019, features=1, C=True,P=True):
     '''Put all currencies and/or all pairs into one dataframe, so that the time
@@ -105,8 +113,9 @@ def splitXy(data, lookback=5, horizon=1):
     return X, y
 
 def model_builder(shape, lstm_units=256, dropout=0.01, channels=1):
-    rnn = Sequential([LSTM(units = lstm_units,
-        return_sequences = False,  input_shape=shape),
+    rnn = Sequential([LSTM(units = lstm_units, stateful=False,
+    bias_regularizer=L1L2(l1=0.01, l2=0.01), return_sequences = False,
+    input_shape=shape),
             Dropout(dropout),
             Dense(channels)]) # Output layer
     rnn.compile(optimizer = Adam(learning_rate = 10 ** -5),
@@ -158,7 +167,7 @@ def pipeline_df(train, test, n_features=1):
     # Construct and train model
     model = model_builder((lookback, 1))
     history = model.fit(X_train, y_train, validation_split=0.2,
-        epochs = epochs, batch_size = bch_size,
+        epochs = epochs, batch_size = bch_size, shuffle=False,
         callbacks = [callbacks.EarlyStopping(monitor='val_loss',
         min_delta=0, patience=10, verbose=1, mode='min'),
             callbacks.ModelCheckpoint(model_path, monitor='val_loss',
