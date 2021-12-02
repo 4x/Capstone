@@ -13,6 +13,7 @@ from keras_tuner import Hyperband
 from time import perf_counter
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from random import randrange
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
@@ -27,58 +28,47 @@ pair_map = [[0, 3, 4, 5, 6], [9, 10, 11, 12], [1, 7, 13, 14, 15, 16, 17],\
     [2, 8, 18, 19, 20, 21], [22, 23], [25], [], [24, 26, 27]]
 
 # parameters
-lookback = 1 # number of previous time steps to use as input
-horizon = 10 # number of time steps ahead to predict
+lookback = 2 # number of previous time steps to use as input
+horizon = 2 # number of time steps ahead to predict
 n_features = 1
 
 # Network hyperparameters
-model_path = r'\LSTM_Multivariate.h5'
+model_path = '\LSTM_Multivariate.h5'
 bch_size = 1
-dropout = 0.005
+dropout = 0.2
 
 # per hypertuner:
 epochs = 1
 learning_rate = 1e-3
-lstm_units = 64
+lstm_units = 32
 
-def envelope(df):
+def envelope(df=None):
     '''Splits data into train/test, sends off to scale_distribute for
     fitting and predicting, and measures and reports performance.'''
+    
+    # pre-processing
     mapes = list()
     format = "%(asctime)s: %(message)s"
     logging.basicConfig(format=format, level=logging.WARN, datefmt="%H:%M:%S")
     logger = logging.getLogger('functions')
-    if 'df' not in globals() and 'df' not in locals():
+    if ('df' not in globals() and 'df' not in locals()) or df is None:
         df = create_inclusive_array()
     train, test = train_test_split(df, shuffle=False)
     unscaled_y = test.iloc[lookback:-horizon, :] # save for later before
+    
+    # fit and predict
     predictions, ctime, ptime = scale_distribute(train, test)
     
+    # post processing
     for i in range(predictions.shape[1]):
         mapes.append(mape(unscaled_y.iloc[:, i], predictions[:, i]))
     divided = divide_currencies(predictions)
-    #predicted_pairs = predictions[:, 8:]
-    true_pairs = unscaled_y.iloc[:, 8:]
-    divided_currency_err = mape(true_pairs, divided)
+    divided_currency_err = mape(unscaled_y.iloc[:, 8:], divided)
     mape_improvement = concat([Series(mapes[8:],
     index=divided_currency_err.index), divided_currency_err], axis=1)\
             .assign(improvement = lambda x: ((x[0] - x[1]) / x[0])*100)
     print_results(ctime, ptime, mapes[:8], mapes[8:], mape_improvement)
-    pair = 17 # EUR/USD
-    d = DataFrame(column_stack([unscaled_y.iloc[:, 8+pair],
-        predictions[:, 8+pair], divided[:, pair]]), index=unscaled_y.index,
-        columns=['Actual', 'Direct prediction', 'Divided currencies'])
-    plt.plot(d)
-    plt.title(pairs[pair])
-    plt.legend()
-    plt.show()
-    pair = 27 # USD/JPY
-    d = DataFrame(column_stack([unscaled_y.iloc[:, 8+pair],
-        predictions[:, 8+pair], divided[:, pair]]), index=unscaled_y.index,
-        columns=['Actual', 'Direct prediction', 'Divided currencies'])
-    plt.plot(d)
-    plt.title(pairs[pair])
-    plt.show()
+    plot_random(unscaled_y, predictions, divided)
     return predictions, divided, unscaled_y, mapes, mape_improvement
 
 def create_inclusive_array(freq='30Min', year=2019, features=1, C=True,P=True):
@@ -125,7 +115,7 @@ def model_builder(shape, lstm_units=256, dropout=0.01, channels=1):
     rnn = Sequential()
     rnn.add(LSTM(units = lstm_units, stateful=False,
     bias_regularizer=L1L2(l1=0.01, l2=0.01), return_sequences = False,
-    input_shape=shape))
+    input_shape=shape, unit_forget_bias=True))
     rnn.add(Dropout(dropout))
     rnn.add(Dense(channels))
     rnn.compile(optimizer = Adam(learning_rate = learning_rate),
@@ -175,7 +165,7 @@ def pipeline_df(train, test, n_features=1):
     X_test, _ = splitXy(test, lookback, horizon)
     
     # Construct and train model
-    model = model_builder((lookback, 1), lstm_units)
+    model = model_builder((lookback, 1), lstm_units, dropout)
     history = model.fit(X_train, y_train, validation_split=0.2,
         epochs = epochs, batch_size = bch_size, shuffle=False,
         callbacks = [callbacks.EarlyStopping(monitor='val_loss',
@@ -230,15 +220,15 @@ def plot_training(history):
     plt.legend(['train', 'val'], loc='upper left')
     plt.show()
 
-def plot_predictions(x, true_y, direct_prediction, divided_prediction):
-    plt.plot(x, true_y)
-    plt.plot(x, direct_prediction)
-    plt.plot(x, divided_prediction)
-    plt.plot(history.history['val_loss'])
-    plt.title('Training the neural network')
-    plt.ylabel('Loss')
-    plt.xlabel('Epoch')
-    plt.legend(['train', 'val'], loc='upper left')
+def plot_random(unscaled_y, predictions, divided, pair=-1):
+    if pair < 0: pair = randrange(28)
+    columns = ['Actual', 'Direct prediction', 'Divided currencies']
+    d = DataFrame(column_stack([unscaled_y.iloc[:, 8+pair],
+        predictions[:, 8+pair], divided[:, pair]]), index=unscaled_y.index,
+        columns=columns)
+    plt.plot(d, label=columns)
+    plt.title(pairs[pair])
+    plt.legend()
     plt.show()
 
 # Hyperparameter search/optimization
