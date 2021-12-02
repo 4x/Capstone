@@ -14,5 +14,5 @@ plot_random(unscaled_y, predictions, divided, pair=1)
 # train/predict only one pair
 pair_map = list()
 pair_map.append([])
-predictions, divided, unscaled_y, mapes, mape_improvement = envelope(df.iloc[:, 0:1])
 y, predictions = envelope(df.iloc[:, 0:1])
+plot_random(y, predictions)

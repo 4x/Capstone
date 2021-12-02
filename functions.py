@@ -16,14 +16,14 @@ import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 # parameters
-lookback = 2 # number of previous time steps to use as input
-horizon = 2 # number of time steps ahead to predict
+lookback = 20 # number of previous time steps to use as input
+horizon = 1 # number of time steps ahead to predict
 n_features = 1
 
 # Network hyperparameters
 model_path = '\LSTM_Multivariate.h5'
-bch_size = 1
-dropout = 0.2
+bch_size = 10
+dropout = 1e-4
 
 # per hypertuner:
 epochs = 1
