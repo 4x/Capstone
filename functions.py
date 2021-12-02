@@ -34,11 +34,12 @@ n_features = 1
 # Network hyperparameters
 model_path = r'\LSTM_Multivariate.h5'
 bch_size = 1
+dropout = 0.005
 
 # per hypertuner:
 epochs = 1
-#learning_rate = 10 ** -5
-#lstm_units = 256
+learning_rate = 1e-3
+lstm_units = 64
 
 def envelope(df):
     '''Splits data into train/test, sends off to scale_distribute for
@@ -64,6 +65,14 @@ def envelope(df):
             .assign(improvement = lambda x: ((x[0] - x[1]) / x[0])*100)
     print_results(ctime, ptime, mapes[:8], mapes[8:], mape_improvement)
     pair = 17 # EUR/USD
+    d = DataFrame(column_stack([unscaled_y.iloc[:, 8+pair],
+        predictions[:, 8+pair], divided[:, pair]]), index=unscaled_y.index,
+        columns=['Actual', 'Direct prediction', 'Divided currencies'])
+    plt.plot(d)
+    plt.title(pairs[pair])
+    plt.legend()
+    plt.show()
+    pair = 27 # USD/JPY
     d = DataFrame(column_stack([unscaled_y.iloc[:, 8+pair],
         predictions[:, 8+pair], divided[:, pair]]), index=unscaled_y.index,
         columns=['Actual', 'Direct prediction', 'Divided currencies'])
@@ -113,26 +122,27 @@ def splitXy(data, lookback=5, horizon=1):
     return X, y
 
 def model_builder(shape, lstm_units=256, dropout=0.01, channels=1):
-    rnn = Sequential([LSTM(units = lstm_units, stateful=False,
+    rnn = Sequential()
+    rnn.add(LSTM(units = lstm_units, stateful=False,
     bias_regularizer=L1L2(l1=0.01, l2=0.01), return_sequences = False,
-    input_shape=shape),
-            Dropout(dropout),
-            Dense(channels)]) # Output layer
-    rnn.compile(optimizer = Adam(learning_rate = 10 ** -5),
-                loss = 'mean_squared_error')
+    input_shape=shape))
+    rnn.add(Dropout(dropout))
+    rnn.add(Dense(channels))
+    rnn.compile(optimizer = Adam(learning_rate = learning_rate),
+                loss='mean_squared_error', metrics=['accuracy'])
     return rnn
 
 def model_tuner(hp):
-    dropout=0.01
     channels=1
     shape = (lookback, 1)
     rnn = Sequential()
-    hp_units = hp.Int('units', min_value=256, max_value=512, step=16)
-    rnn.add(LSTM(units=hp_units, return_sequences = False,\
+    hp_units = hp.Int('units', min_value=1, max_value=101, step=25)
+    rnn.add(LSTM(units=hp_units, stateful=False,
+    bias_regularizer=L1L2(l1=0.01, l2=0.01), return_sequences = False,
         input_shape=shape))
     rnn.add(Dropout(dropout))
     rnn.add(Dense(channels))
-    hp_learning_rate = hp.Choice('learning_rate', values=[3e-1, 1e-1, 1e-2])
+    hp_learning_rate = hp.Choice('learning_rate', values=[3e-5, 1e-4, 1e-3])
     rnn.compile(optimizer=Adam(learning_rate=hp_learning_rate),
                 loss='mean_squared_error', metrics=['accuracy'])
     return rnn
@@ -165,7 +175,7 @@ def pipeline_df(train, test, n_features=1):
     X_test, _ = splitXy(test, lookback, horizon)
     
     # Construct and train model
-    model = model_builder((lookback, 1))
+    model = model_builder((lookback, 1), lstm_units)
     history = model.fit(X_train, y_train, validation_split=0.2,
         epochs = epochs, batch_size = bch_size, shuffle=False,
         callbacks = [callbacks.EarlyStopping(monitor='val_loss',
