@@ -1,5 +1,5 @@
 import pickle
-from pd import DataFrame, merge
+from pandas import DataFrame, merge
 
 # Global lists
 insts = ["AUD", "NZD", "EUR", "GBP", "CAD", "CHF", "JPY", "USD"]
@@ -7,13 +7,14 @@ pairs = ['AUDNZD', 'EURAUD', 'GBPAUD', 'AUDCAD', 'AUDCHF', 'AUDJPY', 'AUDUSD',\
      'EURNZD', 'GBPNZD', 'NZDCAD', 'NZDCHF', 'NZDJPY', 'NZDUSD', 'EURGBP',\
         'EURCAD', 'EURCHF', 'EURJPY', 'EURUSD', 'GBPCAD', 'GBPCHF', 'GBPJPY',\
         'GBPUSD', 'CADCHF', 'CADJPY', 'USDCAD', 'CHFJPY', 'USDCHF', 'USDJPY']
-n_insts = len(insts)
+#n_insts = len(insts)
 pair_map = [[0, 3, 4, 5, 6], [9, 10, 11, 12], [1, 7, 13, 14, 15, 16, 17],\
     [2, 8, 18, 19, 20, 21], [22, 23], [25], [], [24, 26, 27]]
 
 def map_pairs_to_currency(insts, pairs):
     matching_pairs = list()
-    for i, c1 in enumerate(insts):
+    #for i, c1 in enumerate(insts):
+    for c1 in insts:
         p = list()
         for j, pair in enumerate(pairs):
             if pair[:3] == c1:

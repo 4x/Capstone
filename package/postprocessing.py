@@ -1,18 +1,21 @@
 import matplotlib.pyplot as plt
 from numpy.lib.shape_base import column_stack
-from np import empty, mean
-from pd import DataFrame
+from numpy import empty, mean
+from pandas import DataFrame
+from preprocessing import pairs, insts
+from random import randrange
 
 def mape(actual, forecast):
     '''Mean Absolute Percentage Error'''
     return mean(abs((forecast - actual) / actual)) * 100
 
 def divide_currencies(predictions):
+    '''predict currency pair by dividing the predictions of its consituent
+    currencies.'''
     divided = empty((predictions.shape[0], 28))
     for i, pair in enumerate(pairs):
         base, quote = pair[:3], pair[3:]
-        b = insts.index(base)
-        q = insts.index(quote)
+        b, q = insts.index(base), insts.index(quote)
         divided[:, i] = (predictions[:, b] / predictions[:, q]).flatten()
     return divided
 

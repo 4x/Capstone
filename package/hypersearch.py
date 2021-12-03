@@ -1,4 +1,11 @@
 from keras_tuner import Hyperband
+from tensorflow.keras.layers import Dense, LSTM, Dropout
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras import callbacks
+from keras.regularizers import L1L2
+from sklearn.preprocessing import MinMaxScaler
+from tensorflow.keras.models import Sequential
+from sklearn.model_selection import train_test_split
 
 def model_tuner(hp):
     channels=1

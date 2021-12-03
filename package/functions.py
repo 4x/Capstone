@@ -1,5 +1,4 @@
 from pandas import DataFrame, merge, concat, Series
-import pickle
 from numpy import empty, mean, squeeze, column_stack
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
@@ -11,13 +10,12 @@ from keras.regularizers import L1L2
 from time import perf_counter
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from random import randrange
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 # parameters
-lookback = 20 # number of previous time steps to use as input
-horizon = 1 # number of time steps ahead to predict
+lookback = 4 # number of previous time steps to use as input
+horizon = 4 # number of time steps ahead to predict
 n_features = 1
 
 # Network hyperparameters
