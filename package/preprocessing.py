@@ -35,7 +35,7 @@ def create_inclusive_array(freq='30Min', year=2019, features=1, C=True,P=True):
     if C: # include currencies
         for c1 in insts:
             print(c1)
-            with open("./"+freq+"_"+str(year)+"/"+c1 +'_'+freq+'.pickle','rb')\
+            with open("../"+freq+"_"+str(year)+"/"+c1 +'_'+freq+'.pickle','rb')\
             as pickle_file:
                 d = pickle.load(pickle_file).iloc[:,-features:]
             df = merge(df,d, left_index=True,right_index=True, how='outer',\
@@ -44,7 +44,7 @@ def create_inclusive_array(freq='30Min', year=2019, features=1, C=True,P=True):
     if P: # include pairs
         for c1 in pairs:
             print(c1)
-            with open("./"+freq+"_"+str(year)+"/"+c1 +'_'+freq+'.pickle','rb')\
+            with open("../"+freq+"_"+str(year)+"/"+c1 +'_'+freq+'.pickle','rb')\
             as pickle_file:
                 d = pickle.load(pickle_file).iloc[:,-features:]
             df = merge(df,d, left_index=True, right_index=True,how='outer',\

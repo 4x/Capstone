@@ -10,6 +10,11 @@ from keras.regularizers import L1L2
 from time import perf_counter
 import logging
 from concurrent.futures import ThreadPoolExecutor
+import preprocessing
+#import postprocessing
+from preprocessing import pairs, pair_map
+from postprocessing import plot_random, print_results, divide_currencies, mape
+
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
@@ -46,7 +51,7 @@ def envelope(df=None):
     predictions, ctime, ptime = scale_distribute(train, test)
     
     # post processing
-    return(unscaled_y, predictions)
+    #return(unscaled_y, predictions)
     plot_random(unscaled_y, predictions)
     for i in range(predictions.shape[1]):
         mapes.append(mape(unscaled_y.iloc[:, i], predictions[:, i]))
