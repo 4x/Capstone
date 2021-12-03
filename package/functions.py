@@ -10,13 +10,12 @@ from keras.regularizers import L1L2
 from time import perf_counter
 import logging
 from concurrent.futures import ThreadPoolExecutor
-import preprocessing
-#import postprocessing
-from preprocessing import pairs, pair_map
-from postprocessing import plot_random, print_results, divide_currencies, mape
-
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
+# Local imports
+from preprocessing import pairs, pair_map
+from postprocessing import plot_random, print_results, divide_currencies, mape
 
 # parameters
 lookback = 4 # number of previous time steps to use as input

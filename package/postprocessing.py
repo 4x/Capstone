@@ -4,6 +4,7 @@ from numpy import empty, mean
 from pandas import DataFrame
 from preprocessing import pairs, insts
 from random import randrange
+import logging
 
 def mape(actual, forecast):
     '''Mean Absolute Percentage Error'''
@@ -32,6 +33,9 @@ def print_results(ct, pt, currency_accuracy, pair_accuracy, mape_improvement):
     print("... shaving off {:.0%}".format((sump-sumc) / sump))
 
 def plot_random(y, predictions, divided=None, pair=-1):    
+    format = "%(asctime)s: %(message)s"
+    logging.basicConfig(format=format, level=logging.WARN, datefmt="%H:%M:%S")
+    logger = logging.getLogger('postprocessing')
     columns = ['Actual', 'Direct prediction']
     if divided is None:
         cstack = [y, predictions]
@@ -39,7 +43,13 @@ def plot_random(y, predictions, divided=None, pair=-1):
         if pair < 0: pair = randrange(28)
         cstack = [y.iloc[:, 8+pair], predictions[:, 8+pair], divided[:, pair]]
         columns.append('Divided currencies')
+    logger.info(columns)
+    logger.info(cstack)
+    logger.info(column_stack(cstack))
+    
     d = DataFrame(column_stack(cstack), index=y.index, columns=columns)
+    print(d)
+    
     plt.plot(d, label=columns)
     plt.title(pairs[pair])
     plt.legend()

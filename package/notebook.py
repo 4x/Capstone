@@ -13,7 +13,8 @@ y[:, 0], predictions[:, 0] = functions.envelope(df)
 
 prepare_run_hypersearch(df)
 
-plot_random(y, predictions, divided, pair=1)
+postprocessing.plot_random(unscaled_y, predictions, divided, pair=10)
+postprocessing.plot_random(unscaled_y, predictions, divided)
 postprocessing.plot_random(y, predictions)
 
 # train/predict only one pair
@@ -21,3 +22,6 @@ pair_map = list()
 pair_map.append([])
 y, predictions = envelope(df.iloc[:, 0:1])
 plot_random(y, predictions)
+
+unscaled_y, predictions = predictions, divided
+divided = postprocessing.divide_currencies(predictions)
