@@ -29,7 +29,7 @@ All time series were split into training and test sets using `sklearn.model_sele
 ## Distributed Computing
 This project relies on 36 simultaneous neural networks: 28 for the currencies, and eight for the underlying currencies. To split the load among the processors and cores, the computations are executed asynchronously using `ThreadPoolExecutor` (in `scale_distribute(train, test)`.
 
-![Model Losses](./ModelLosses.png)
+![Model Losses](./images/ModelLosses.png)
 
 ## Measuring Forecast Accuracy
 There are many ways to compare the performance of various prediction models. I chose *Mean Absolute Percentage Error*, or MAPE, which is calculated as:
@@ -40,6 +40,8 @@ What we see is that if we compare the price prediction of these two sets, the la
 
 ## Not Good. Better.
 I would like to reiterate that I am developing more of a filter than a prediction model or trading algorithm. While I made sure to develop the neural network properly, I am not claiming that the neural network itself is a good tool to forecast currency movements. Rather, I am saying that using _currencies_, as extracted here, rather than currency _pairs_, **improves** the performance of the tool that is already being used (the neural network, in this particular example).
+
+![Model Losses](./images/EURAUDexample_result.png)
 
 ### Disclaimer
 This program is for educational purposes. I am not suggesting you invest, buy, or sell anything. You are on you own.
